@@ -1,0 +1,6 @@
+# Exemple :
+# user esp32
+# topic write usine/#
+#
+# user nodered
+# topic read usine/#

@@ -1,0 +1,28 @@
+# PlatformIO
+1-firmware/.pio/
+1-firmware/.vscode/
+1-firmware/include/secrets.h
+# Mots de passe Mosquitto (ne jamais pousser)
+2-broker/passwd
+*.passwd
+
+# Node-RED
+3-node-red/flows_cred.json
+3-node-red/.config.*.json
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Divers
+.env
+.DS_Store
+Thumbs.db
+
+# Clés privées TLS (broker en 8883)
+*.key
+
+# Données produites en direct
+5-data/*
+!5-data/.gitkeep
