@@ -29,3 +29,6 @@ Thumbs.db
 # Données produites en direct
 5-data/*
 !5-data/.gitkeep
+
+# Logs du broker (produits en direct)
+2-broker/logs/
