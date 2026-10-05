@@ -1,6 +1,21 @@
-# Exemple :
-# user esp32
-# topic write usine/#
-#
-# user nodered
-# topic read usine/#
+# --- ESP32 : publie ses mesures et ses états, reçoit la commande du buzzer ---
+
+user esp32
+topic write usine/ligne1/pompe1/capteurs/#
+topic write usine/ligne1/pompe1/actionneurs/buzzer/etat
+topic write usine/ligne1/pompe1/actionneurs/relais/etat
+topic write usine/ligne1/pompe1/etat
+topic write usine/ligne1/pompe1/alertes
+topic read usine/ligne1/pompe1/actionneurs/buzzer/commande
+
+# --- Node-RED : lit tout, commande le buzzer, publie les alertes ---
+
+user nodered
+topic read usine/#
+topic write usine/ligne1/pompe1/actionneurs/buzzer/commande
+topic write usine/ligne1/pompe1/alertes
+
+# --- Python : lecture seule ---
+
+user python
+topic read usine/#
