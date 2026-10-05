@@ -22,6 +22,9 @@ Thumbs.db
 
 # Clés privées TLS (broker en 8883)
 *.key
+# Fichiers intermédiaires des certificats (demande, numéro de série)
+*.csr
+*.srl
 
 # Données produites en direct
 5-data/*
