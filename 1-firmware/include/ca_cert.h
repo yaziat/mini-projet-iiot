@@ -1,0 +1,28 @@
+#pragma once
+// Certificat PUBLIC de notre autorité de certification (copie de 2-broker/certs/ca.crt).
+// Il permet à l'ESP32 de vérifier que le broker est bien le vrai (TLS).
+// Ce fichier n'est PAS secret : il peut aller sur GitHub.
+// Si on régénère la CA, il faut recopier ici le nouveau ca.crt.
+
+static const char CA_CERT[] = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIDLTCCAhWgAwIBAgIUFRqFygSrgz8uVYIPC2XpLamLP9kwDQYJKoZIhvcNAQEL
+BQAwHjEcMBoGA1UEAwwTQ0EgTWluaSBQcm9qZXQgSUlvVDAeFw0yNjEwMDUxOTIz
+NTRaFw0yODEwMDQxOTIzNTRaMB4xHDAaBgNVBAMME0NBIE1pbmkgUHJvamV0IElJ
+b1QwggEiMA0GCSqGSIb3DQEBAQUAA4IBDwAwggEKAoIBAQCcahP7b7B0HjBIi/z1
+44SMewUNqj50zS5xiVXqi9ahJNO4+7X+1jSwFV8TtbCvV5xJVguemzJbljjg+XKw
+9/b/8/by/r13t0aPEfLOy1Qk88MvKHUCFBHr/4BKLOTG7xFyWNnjDa51oKmCtYTm
+FPJRE/8C06UlWMo9XcYilaU6C9UAyqIM9XxwfFzi6aIOukYzw3/mWsA3rdcHCies
+pM7e83YZetNQzmdT+u+i8vo2088p9wfZE5C8kztffR18Vzdrcfwy7S0Zs6TyC4PB
+ijjD0X3nwgLhRXGUBZYWhmDouWoj8/c/kgz2V19WT/kCIPqTBfYikHJbLFn1KQxm
+O5JBAgMBAAGjYzBhMB0GA1UdDgQWBBRUjJGGtdq0lQ9Kbf4yVY406LW3mjAfBgNV
+HSMEGDAWgBRUjJGGtdq0lQ9Kbf4yVY406LW3mjAPBgNVHRMBAf8EBTADAQH/MA4G
+A1UdDwEB/wQEAwIBBjANBgkqhkiG9w0BAQsFAAOCAQEAMDIhjkF1emT0teUJjKHH
+FDIyZI1JD4QNNKkqagQaa+gx8Ad0vVC6U8Eq0Bx7pZv3PfBQ0vl2hK+SFpmkFOMt
+S/KzPWYalBj1bDAqcITtSCetPcE0n1PDPPpCcB5wWF96i+kmpZH/+ZKHBZE8midb
+FseMrA+bxZm3wT8R59Z3TmTta7NZblEnrYrdWbKQRkJ4eorqMK5RtMk/YOPN1538
+bp+QUd49LwgqIg6jUcIEzxTbLGLFvjxi29hMO04n0Wp1qJ2wt6yl/8O4MfC4NvrY
+fUTSUu7EA97TfbTyI0HYF+T7pUamzZ5vjOXWNtYgD0Htn0STGF+rtpYBFM6qajBe
+rQ==
+-----END CERTIFICATE-----
+)EOF";

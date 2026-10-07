@@ -32,3 +32,6 @@ Thumbs.db
 
 # Logs du broker (produits en direct)
 2-broker/logs/
+
+# Journaux de compilation (diagnostic)
+build-log.txt
