@@ -16,8 +16,8 @@ const int PIN_BOUTON  = 25;   // bouton « Réarmement » (vers GND)
 // --- Seuils (cahier des charges) ---
 const float SEUIL_CRITIQUE_TEMP = 85.0;   // °C → coupure
 const float SEUIL_CRITIQUE_VIB  = 1.0;    // g  → coupure
-const float SEUIL_REARM_TEMP    = 80.0;   // °C → réarmement possible en dessous (hystérésis)
-const float SEUIL_REARM_VIB     = 0.9;    // g  → réarmement possible en dessous (hystérésis)
+const float SEUIL_REARM_TEMP    = 75.0;   // °C → réarmement possible en dessous (= sous le seuil d'alerte)
+const float SEUIL_REARM_VIB     = 0.5;    // g  → réarmement possible en dessous (= sous le seuil d'alerte)
 
 // --- Plages plausibles (une valeur hors plage n'est JAMAIS comparée aux seuils) ---
 const float TEMP_MIN = 0.0, TEMP_MAX = 120.0;
