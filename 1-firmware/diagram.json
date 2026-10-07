@@ -1,13 +1,73 @@
 {
   "version": 1,
-  "author": "",
+  "author": "Yazid",
   "editor": "wokwi",
   "parts": [
-    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} }
+    {
+      "type": "board-esp32-devkit-c-v4",
+      "id": "esp",
+      "top": 0,
+      "left": 0,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-ds18b20",
+      "id": "temp1",
+      "top": -110,
+      "left": -170,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-mpu6050",
+      "id": "imu1",
+      "top": -130,
+      "left": 160,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-relay-module",
+      "id": "relay1",
+      "top": 160,
+      "left": 200,
+      "attrs": {}
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 170,
+      "left": -190,
+      "attrs": { "volume": "0.1" }
+    },
+    {
+      "type": "wokwi-pushbutton",
+      "id": "btn1",
+      "top": 260,
+      "left": 60,
+      "attrs": { "color": "green" }
+    }
   ],
   "connections": [
-    [ "esp:TX", "$serialMonitor:RX", "", [] ],
-    [ "esp:RX", "$serialMonitor:TX", "", [] ]
+    ["esp:TX", "$serialMonitor:RX", "", []],
+    ["esp:RX", "$serialMonitor:TX", "", []],
+
+    ["temp1:VCC", "esp:3V3", "red", []],
+    ["temp1:GND", "esp:GND.1", "black", []],
+    ["temp1:DQ", "esp:4", "orange", []],
+
+    ["imu1:VCC", "esp:3V3", "red", []],
+    ["imu1:GND", "esp:GND.2", "black", []],
+    ["imu1:SDA", "esp:21", "blue", []],
+    ["imu1:SCL", "esp:22", "yellow", []],
+
+    ["relay1:VCC", "esp:5V", "red", []],
+    ["relay1:GND", "esp:GND.1", "black", []],
+    ["relay1:IN", "esp:26", "green", []],
+
+    ["bz1:2", "esp:27", "purple", []],
+    ["bz1:1", "esp:GND.2", "black", []],
+
+    ["btn1:1.l", "esp:25", "green", []],
+    ["btn1:2.l", "esp:GND.1", "black", []]
   ],
   "dependencies": {}
 }
