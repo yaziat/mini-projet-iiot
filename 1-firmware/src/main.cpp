@@ -31,6 +31,12 @@ const float SEUIL_REARM_VIB     = 0.5;
 const float TEMP_MIN = 0.0, TEMP_MAX = 120.0;
 const float VIB_MAX  = 8.0;
 
+// --- NOUVEAU (09) : règles de validation ---
+const float   TEMP_PIEGE     = 85.0;   // valeur renvoyée par un DS18B20 après une erreur d'alimentation
+const float   SAUT_MAX_TEMP  = 10.0;   // un roulement ne chauffe pas de plus de 10 °C en 2 s
+const float   NORME_MIN_G    = 0.2;    // un MPU vivant ressent toujours ~1 g (gravité)
+const uint8_t ADRESSE_MPU    = 0x68;   // adresse I2C du MPU6050
+
 // --- Topics MQTT ---
 const char* TOPIC_TEMP        = "usine/ligne1/pompe1/capteurs/temperature";
 const char* TOPIC_VIB         = "usine/ligne1/pompe1/capteurs/vibration";
@@ -74,6 +80,7 @@ struct AlerteCoupure {
 struct Partage {
   // sécurité (cœur 1) → réseau (cœur 0)
   float    temp = 0, vib = 0;
+  bool     tempOk = false, vibOk = false;     // NOUVEAU (09) : validité décidée par le cœur 1
   String   tsMesure = "";
   uint32_t numMesure = 0;                     // compteur des mesures
   bool     moteurEnMarche = false;
@@ -100,18 +107,51 @@ unsigned long derniereMesure     = 0;
 unsigned long dernierEchantillon = 0;
 float sommeCarres    = 0;
 int   nbEchantillons = 0;
+int   nbMuets        = 0;                    // NOUVEAU (09) : lectures « sans gravité »
 const float G = 9.80665;
 float derniereTemp = 0;
 float derniereVib  = 0;
+bool  derniereTempOk = false;                // NOUVEAU (09)
+bool  derniereVibOk  = false;                // NOUVEAU (09)
+float tempReference  = NAN;                  // NOUVEAU (09) : dernière température acceptée
+float tempSuspecte   = NAN;                  // NOUVEAU (09) : saut en attente de confirmation
+bool  mpuOk          = false;                // NOUVEAU (09) : MPU trouvé au démarrage ?
 bool  moteurEnMarche = false;
 bool  buzzerActif    = false;
 bool  defautCritique = false;
 int   etatBoutonPrecedent = HIGH;
 unsigned long dernierChangementBouton = 0;
 
-// ===== Une seule règle « mesure bonne ou fausse » =====
-bool temperatureValide(float t) { return !isnan(t) && t >= TEMP_MIN && t <= TEMP_MAX; }
-bool vibrationValide(float v)   { return !isnan(v) && v >= 0 && v <= VIB_MAX; }
+// ===================================================================
+// NOUVEAU (09) : règles de validation (cœur 1)
+// ===================================================================
+// Plage plausible + rejet de la valeur piège 85,0 °C
+bool temperaturePlausible(float t) {
+  return !isnan(t) && t >= TEMP_MIN && t <= TEMP_MAX && t != TEMP_PIEGE;
+}
+bool vibrationPlausible(float v) { return !isnan(v) && v >= 0 && v <= VIB_MAX; }
+
+// Le MPU6050 répond-il sur le bus I2C ?
+bool mpuRepond() {
+  Wire.beginTransmission(ADRESSE_MPU);
+  return Wire.endTransmission() == 0;
+}
+
+// Contrôle du saut : > 10 °C en 2 s = suspect. Accepté si la mesure suivante le confirme.
+bool controlerSaut(float t) {
+  if (isnan(tempReference) || fabs(t - tempReference) <= SAUT_MAX_TEMP) {
+    tempReference = t; tempSuspecte = NAN;
+    return true;                                         // variation normale
+  }
+  if (!isnan(tempSuspecte) && fabs(t - tempSuspecte) <= SAUT_MAX_TEMP) {
+    tempReference = t; tempSuspecte = NAN;
+    Serial.printf("Saut confirme : nouvelle temperature %.1f C acceptee\r\n", t);
+    return true;                                         // le saut se confirme : vrai changement
+  }
+  Serial.printf("Mesure suspecte ignoree : saut de %.1f C en 2 s\r\n", t - tempReference);
+  tempSuspecte = t;
+  return false;                                          // parasite probable
+}
 
 // ===== L'heure (utilisable par les deux cœurs) =====
 String horodatage() {
@@ -165,10 +205,10 @@ void appliquerCommande() {
   Serial.printf(">>> COMMANDE BUZZER : %s (source : %s)\r\n", cmd.c_str(), src.c_str());
 }
 
-// Coupure au seuil critique (+ alerte déposée dans la boîte)
-void verifierSeuilCritique(float temp, float vib) {
-  bool tempCritique = temperatureValide(temp) && temp > SEUIL_CRITIQUE_TEMP;
-  bool vibCritique  = vibrationValide(vib)    && vib  > SEUIL_CRITIQUE_VIB;
+// Coupure au seuil critique (MODIFIÉ (09) : on utilise la validité décidée avant)
+void verifierSeuilCritique(float temp, bool tempOk, float vib, bool vibOk) {
+  bool tempCritique = tempOk && temp > SEUIL_CRITIQUE_TEMP;
+  bool vibCritique  = vibOk  && vib  > SEUIL_CRITIQUE_VIB;
   if ((tempCritique || vibCritique) && !defautCritique) {
     defautCritique = true;
     if (tempCritique && vibCritique) moteurCoupe("temperature et vibration critiques");
@@ -184,7 +224,7 @@ void verifierSeuilCritique(float temp, float vib) {
   }
 }
 
-// Bouton « Réarmement »
+// Bouton « Réarmement » (MODIFIÉ (09) : mesures VALIDES obligatoires)
 void gererBoutonRearmement() {
   int etat = digitalRead(PIN_BOUTON);
   if (etat != etatBoutonPrecedent && millis() - dernierChangementBouton > 50) {
@@ -193,6 +233,8 @@ void gererBoutonRearmement() {
     if (etat == LOW) {
       if (!defautCritique) {
         Serial.println("Bouton : aucun defaut a rearmer\r");
+      } else if (!derniereTempOk || !derniereVibOk) {
+        Serial.println(">>> REARMEMENT REFUSE : capteur en defaut (mesure invalide)\r");
       } else if (derniereTemp < SEUIL_REARM_TEMP && derniereVib < SEUIL_REARM_VIB) {
         defautCritique = false;
         moteurMarche("rearmement manuel");
@@ -262,21 +304,22 @@ void publierDepuisPartage() {
   String maintenant = horodatage();
   char texte[200];
 
-  // 1) Mesures (QoS 0, non retenues)
+  // 1) Mesures (QoS 0, non retenues) — MODIFIÉ (09) : validité fournie par le cœur 1
   if (copie.numMesure != pubMesure && copie.tsMesure.length() > 0) {
     JsonDocument d;
     if (isnan(copie.temp)) d["valeur"] = nullptr;                   // pas de NaN dans un JSON
     else                   d["valeur"] = serialized(String(copie.temp, 1));
     d["unite"]   = "°C";
-    d["qualite"] = temperatureValide(copie.temp) ? "ok" : "erreur";
+    d["qualite"] = copie.tempOk ? "ok" : "erreur";
     d["ts"]      = copie.tsMesure;
     serializeJson(d, texte, sizeof(texte));
     mqtt.publish(TOPIC_TEMP, texte, false, 0);
 
     JsonDocument v;
-    v["valeur"]  = serialized(String(copie.vib, 2));
+    if (isnan(copie.vib)) v["valeur"] = nullptr;                    // capteur muet : valeur inconnue
+    else                  v["valeur"] = serialized(String(copie.vib, 2));
     v["unite"]   = "g";
-    v["qualite"] = vibrationValide(copie.vib) ? "ok" : "erreur";
+    v["qualite"] = copie.vibOk ? "ok" : "erreur";
     v["ts"]      = copie.tsMesure;
     serializeJson(v, texte, sizeof(texte));
     mqtt.publish(TOPIC_VIB, texte, false, 0);
@@ -328,7 +371,7 @@ void publierDepuisPartage() {
 // La tâche réseau : tourne en boucle sur le cœur 0
 void tacheReseau(void *param) {
   WiFi.mode(WIFI_STA);
-  WiFi.setAutoReconnect(true);                 // NOUVEAU (08 ④) : reconnexion Wi-Fi automatique
+  WiFi.setAutoReconnect(true);                 // reconnexion Wi-Fi automatique
   WiFi.begin(WIFI_SSID, WIFI_PASS, 6);
   reseauTLS.setCACert(CA_CERT);
   mqtt.begin(MQTT_HOST, MQTT_PORT, reseauTLS);
@@ -361,8 +404,9 @@ void setup() {
   capteurTemp.requestTemperatures();
 
   Wire.begin(PIN_SDA, PIN_SCL);
-  if (!mpu.begin()) Serial.println("ERREUR : MPU6050 introuvable\r");
-  mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  mpuOk = mpu.begin();                        // MODIFIÉ (09) : on retient le résultat
+  if (mpuOk) mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
+  else       Serial.println("ERREUR : MPU6050 introuvable (vibration invalide)\r");
 
   buzzerOn(); delay(300); buzzerOff();        // bip de test
   moteurMarche("demarrage");
@@ -378,40 +422,54 @@ void loop() {
   // ① Vibration : une lecture toutes les 20 ms
   if (millis() - dernierEchantillon >= ECHANTILLON_MS) {
     dernierEchantillon = millis();
-    sensors_event_t accel, gyro, tempMpu;
-    mpu.getEvent(&accel, &gyro, &tempMpu);
-    float x = accel.acceleration.x / G;
-    float y = accel.acceleration.y / G;
-    float z = accel.acceleration.z / G;
-    sommeCarres += x * x + y * y + (z - 1) * (z - 1);
-    nbEchantillons++;
+    if (mpuOk) {
+      sensors_event_t accel, gyro, tempMpu;
+      mpu.getEvent(&accel, &gyro, &tempMpu);
+      float x = accel.acceleration.x / G;
+      float y = accel.acceleration.y / G;
+      float z = accel.acceleration.z / G;
+      if (x * x + y * y + z * z < NORME_MIN_G * NORME_MIN_G) nbMuets++;   // NOUVEAU (09) : pas de gravité = muet
+      sommeCarres += x * x + y * y + (z - 1) * (z - 1);
+      nbEchantillons++;
+    }
   }
 
   // ② Bouton et commandes reçues : à chaque tour
   gererBoutonRearmement();
   appliquerCommande();
 
-  // ③ Toutes les 2 s : mesures, décision, dépôt dans la boîte, affichage
+  // ③ Toutes les 2 s : mesures, VALIDATION, décision, dépôt dans la boîte, affichage
   if (millis() - derniereMesure >= PERIODE_MS) {
     derniereMesure = millis();
 
-    derniereTemp = capteurTemp.getTempCByIndex(0);
+    // --- Température ---
+    float t = capteurTemp.getTempCByIndex(0);
     capteurTemp.requestTemperatures();
-    derniereVib = (nbEchantillons > 0) ? sqrt(sommeCarres / nbEchantillons) : 0;
-    sommeCarres = 0;
-    nbEchantillons = 0;
+    bool tOk = temperaturePlausible(t) && controlerSaut(t);           // NOUVEAU (09)
 
-    verifierSeuilCritique(derniereTemp, derniereVib);   // la sécurité d'abord
+    // --- Vibration ---
+    bool mpuVivant = mpuOk && mpuRepond() && nbEchantillons > 0
+                     && nbMuets <= nbEchantillons / 2;                 // NOUVEAU (09)
+    float v = mpuVivant ? sqrt(sommeCarres / nbEchantillons) : NAN;   // capteur muet : valeur inconnue
+    bool vOk = mpuVivant && vibrationPlausible(v);
+    sommeCarres = 0; nbEchantillons = 0; nbMuets = 0;
+
+    derniereTemp = t;  derniereTempOk = tOk;
+    derniereVib  = v;  derniereVibOk  = vOk;
+
+    verifierSeuilCritique(t, tOk, v, vOk);                            // la sécurité d'abord
 
     String ts = horodatage();
-    verrouiller();                                      // déposer la mesure pour le réseau
-    partage.temp = derniereTemp; partage.vib = derniereVib;
-    partage.tsMesure = ts;       partage.numMesure++;
+    verrouiller();                                                    // déposer la mesure pour le réseau
+    partage.temp = t;   partage.tempOk = tOk;
+    partage.vib  = v;   partage.vibOk  = vOk;
+    partage.tsMesure = ts; partage.numMesure++;
     deverrouiller();
 
-    Serial.printf("[%s] Temp : %.1f C | Vib : %.2f g | Moteur : %s | Buzzer : %s | Wi-Fi : %s | MQTT : %s\r\n",
+    Serial.printf("[%s] Temp : %.1f C%s | Vib : %.2f g%s | Moteur : %s | Buzzer : %s | Wi-Fi : %s | MQTT : %s\r\n",
                   ts.length() ? ts.c_str() : "heure inconnue",
-                  derniereTemp, derniereVib,
+                  t, tOk ? "" : " (erreur)",
+                  v, vOk ? "" : " (erreur)",
                   moteurEnMarche ? "MARCHE" : "COUPE",
                   buzzerActif ? "ON" : "OFF",
                   wifiConnecte ? "OK" : "...",
