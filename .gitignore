@@ -35,3 +35,6 @@ Thumbs.db
 
 # Journaux de compilation (diagnostic)
 build-log.txt
+
+# Base de persistance Mosquitto (messages retenus, change en permanence)
+2-broker/data/

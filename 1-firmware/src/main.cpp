@@ -37,235 +37,135 @@ const char* TOPIC_VIB         = "usine/ligne1/pompe1/capteurs/vibration";
 const char* TOPIC_BUZ_CMD     = "usine/ligne1/pompe1/actionneurs/buzzer/commande";
 const char* TOPIC_BUZ_ETAT    = "usine/ligne1/pompe1/actionneurs/buzzer/etat";
 const char* TOPIC_RELAIS_ETAT = "usine/ligne1/pompe1/actionneurs/relais/etat";
-const char* TOPIC_ALERTES     = "usine/ligne1/pompe1/alertes";                 // NOUVEAU (⑥)
+const char* TOPIC_ALERTES     = "usine/ligne1/pompe1/alertes";
+const char* TOPIC_ETAT        = "usine/ligne1/pompe1/etat";
+
+// --- État de la carte (sans heure : préparés à l'avance) ---
+const char* ETAT_EN_LIGNE   = "{\"etat\":\"en_ligne\"}";
+const char* ETAT_HORS_LIGNE = "{\"etat\":\"hors_ligne\"}";
+const int   KEEPALIVE_S     = 30;   // carte déclarée perdue après 1,5 × 30 = 45 s
 
 // --- Capteurs ---
 OneWire busOneWire(PIN_DS18B20);
 DallasTemperature capteurTemp(&busOneWire);
 Adafruit_MPU6050 mpu;
 
-// --- Réseau ---
-WiFiClientSecure reseauTLS;      // le tuyau chiffré
-MQTTClient mqtt(512);            // client MQTT, 512 octets pour nos JSON
+// --- Réseau (utilisé UNIQUEMENT par la tâche réseau, cœur 0) ---
+WiFiClientSecure reseauTLS;
+MQTTClient mqtt(512);
 const unsigned long ATTENTE_MQTT_MS = 5000;   // un essai MQTT toutes les 5 s
 unsigned long dernierEssaiMqtt = 0;
+volatile bool wifiConnecte = false;           // écrits par le cœur 0, lus pour l'affichage
+volatile bool mqttConnecte = false;
 
-// --- Rythmes ---
+// ===================================================================
+// La « boîte » partagée entre les deux cœurs + son verrou
+// ===================================================================
+SemaphoreHandle_t verrou;                     // le « bâton de parole » (mutex)
+void verrouiller()   { xSemaphoreTake(verrou, portMAX_DELAY); }
+void deverrouiller() { xSemaphoreGive(verrou); }
+
+struct AlerteCoupure {
+  uint32_t numero = 0;                        // augmente à chaque nouvelle coupure
+  float    valeur = 0;
+  String   ts     = "";                       // heure de la coupure
+};
+
+struct Partage {
+  // sécurité (cœur 1) → réseau (cœur 0)
+  float    temp = 0, vib = 0;
+  String   tsMesure = "";
+  uint32_t numMesure = 0;                     // compteur des mesures
+  bool     moteurEnMarche = false;
+  String   causeRelais = "demarrage";
+  uint32_t numRelais = 0;                     // compteur des changements du relais
+  bool     buzzerActif = false;
+  uint32_t numBuzzer = 0;                     // compteur des changements du buzzer
+  AlerteCoupure alerteTemp, alerteVib;
+  // réseau (cœur 0) → sécurité (cœur 1)
+  String   commande = "";                     // "ON" / "OFF" reçu
+  String   source   = "";
+};
+Partage partage;
+
+// Ce que le réseau a déjà publié (compteurs du dernier envoi réussi)
+uint32_t pubMesure = 0, pubRelais = 0, pubBuzzer = 0, pubAlerteTemp = 0, pubAlerteVib = 0;
+
+// ===================================================================
+// Variables de la tâche sécurité (cœur 1 uniquement)
+// ===================================================================
 const unsigned long PERIODE_MS     = 2000;   // mesures toutes les 2 s
 const unsigned long ECHANTILLON_MS = 20;     // 1 lecture de vibration toutes les 20 ms
 unsigned long derniereMesure     = 0;
 unsigned long dernierEchantillon = 0;
-
-// --- RMS ---
 float sommeCarres    = 0;
 int   nbEchantillons = 0;
 const float G = 9.80665;
-
-// --- Dernières valeurs ---
 float derniereTemp = 0;
 float derniereVib  = 0;
-
-// --- États ---
-bool moteurEnMarche = false;
-bool buzzerActif    = false;
-bool defautCritique = false;
-bool wifiConnecte   = false;
-bool mqttConnecte   = false;
-
-// --- États à publier et commande reçue ---
-String causeRelais      = "demarrage";   // pourquoi le relais est dans cet état
-bool   relaisAPublier   = false;         // l'état du relais a changé → à envoyer
-bool   buzzerAPublier   = false;         // l'état du buzzer a changé → à envoyer
-String commandeRecue    = "";            // "ON" / "OFF" reçu, appliqué dans loop()
-String sourceCommande   = "";            // "auto" / "manuel"
-
-// --- NOUVEAU (⑥) : alertes « coupure locale » en attente d'envoi ---
-// Une alerte par grandeur : si les deux sont critiques, deux messages partent.
-struct AlerteCoupure {
-  bool   aPublier = false;
-  float  valeur   = 0;
-  String ts       = "";                  // heure de la coupure (pas de l'envoi)
-};
-AlerteCoupure alerteTemp;
-AlerteCoupure alerteVib;
-
-// --- Bouton ---
-int  etatBoutonPrecedent = HIGH;
+bool  moteurEnMarche = false;
+bool  buzzerActif    = false;
+bool  defautCritique = false;
+int   etatBoutonPrecedent = HIGH;
 unsigned long dernierChangementBouton = 0;
-
-// ===== Actionneurs (chaque changement est noté « à publier ») =====
-void moteurMarche(const char* cause) {
-  digitalWrite(PIN_RELAIS, HIGH);
-  moteurEnMarche = true;  causeRelais = cause;  relaisAPublier = true;
-}
-void moteurCoupe(const char* cause) {
-  digitalWrite(PIN_RELAIS, LOW);
-  moteurEnMarche = false; causeRelais = cause;  relaisAPublier = true;
-}
-void buzzerOn() {
-  ledcWriteTone(CANAL_BUZZER, 2000);
-  if (!buzzerActif) buzzerAPublier = true;
-  buzzerActif = true;
-}
-void buzzerOff() {
-  ledcWriteTone(CANAL_BUZZER, 0);
-  if (buzzerActif) buzzerAPublier = true;
-  buzzerActif = false;
-}
 
 // ===== Une seule règle « mesure bonne ou fausse » =====
 bool temperatureValide(float t) { return !isnan(t) && t >= TEMP_MIN && t <= TEMP_MAX; }
 bool vibrationValide(float v)   { return !isnan(v) && v >= 0 && v <= VIB_MAX; }
 
-// ===== L'heure =====
-// Donne l'heure au format "2026-10-07T10:00:00Z" (vide si pas encore reçue)
+// ===== L'heure (utilisable par les deux cœurs) =====
 String horodatage() {
   time_t maintenant = time(nullptr);
-  if (maintenant < 1700000000) return "";   // l'ESP32 croit être en 1970 → pas d'heure
+  if (maintenant < 1700000000) return "";   // pas encore d'heure NTP
   struct tm t;
-  gmtime_r(&maintenant, &t);                 // heure UTC
+  gmtime_r(&maintenant, &t);
   char texte[25];
   strftime(texte, sizeof(texte), "%Y-%m-%dT%H:%M:%SZ", &t);
   return String(texte);
 }
 
-// ===== Réception d'un message =====
-// On NE publie PAS ici (règle d'arduino-mqtt) : on note la commande, appliquée dans loop().
-void recevoirMessage(String &topic, String &texte) {
-  if (topic != TOPIC_BUZ_CMD) return;
-
-  JsonDocument doc;
-  if (deserializeJson(doc, texte)) {                       // JSON illisible
-    Serial.print("Commande ignoree : JSON invalide\r\n");
-    return;
-  }
-  String cmd = doc["cmd"] | "";
-  if (cmd != "ON" && cmd != "OFF") {                       // commande inconnue
-    Serial.print("Commande ignoree : cmd doit etre ON ou OFF\r\n");
-    return;
-  }
-  commandeRecue  = cmd;
-  sourceCommande = doc["source"] | "inconnue";
+// ===================================================================
+// TÂCHE SÉCURITÉ (cœur 1) : actionneurs — chaque changement est déposé dans la boîte
+// ===================================================================
+void moteurMarche(const char* cause) {
+  digitalWrite(PIN_RELAIS, HIGH);
+  moteurEnMarche = true;
+  verrouiller();
+  partage.moteurEnMarche = true; partage.causeRelais = cause; partage.numRelais++;
+  deverrouiller();
+}
+void moteurCoupe(const char* cause) {
+  digitalWrite(PIN_RELAIS, LOW);
+  moteurEnMarche = false;
+  verrouiller();
+  partage.moteurEnMarche = false; partage.causeRelais = cause; partage.numRelais++;
+  deverrouiller();
+}
+void buzzerOn(bool confirmer = false) {
+  ledcWriteTone(CANAL_BUZZER, 2000);
+  bool change = !buzzerActif;
+  buzzerActif = true;
+  if (change || confirmer) { verrouiller(); partage.buzzerActif = true; partage.numBuzzer++; deverrouiller(); }
+}
+void buzzerOff(bool confirmer = false) {
+  ledcWriteTone(CANAL_BUZZER, 0);
+  bool change = buzzerActif;
+  buzzerActif = false;
+  if (change || confirmer) { verrouiller(); partage.buzzerActif = false; partage.numBuzzer++; deverrouiller(); }
 }
 
-// ===== Le Wi-Fi, sans jamais bloquer =====
-void surveillerWifi() {
-  bool connecte = (WiFi.status() == WL_CONNECTED);
-
-  if (connecte && !wifiConnecte) {           // il vient d'arriver
-    Serial.print("Wi-Fi connecte, IP = ");
-    Serial.println(WiFi.localIP());
-    configTime(0, 0, "pool.ntp.org");        // on demande l'heure à Internet
-  }
-  if (!connecte && wifiConnecte) {           // il vient de partir
-    Serial.println("Wi-Fi perdu : la surveillance locale continue\r");
-  }
-  wifiConnecte = connecte;
-}
-
-// ===== MQTT chiffré, sans bloquer la boucle =====
-void surveillerMqtt() {
-  if (!wifiConnecte) { mqttConnecte = false; return; }   // pas de Wi-Fi = pas de MQTT
-
-  mqtt.loop();                               // garde la connexion vivante + reçoit les messages
-  mqttConnecte = mqtt.connected();
-  if (mqttConnecte) return;                  // déjà connecté : rien à faire
-
-  if (millis() - dernierEssaiMqtt < ATTENTE_MQTT_MS) return;   // on attend 5 s
-  dernierEssaiMqtt = millis();
-
-  Serial.print("Connexion MQTT (TLS 8883)...\r\n");
-  if (mqtt.connect("esp32-pompe1", MQTT_USER, MQTT_PASS)) {
-    mqttConnecte = true;
-    Serial.print("MQTT connecte au broker\r\n");
-    mqtt.subscribe(TOPIC_BUZ_CMD, 1);        // écouter les ordres (QoS 1)
-    relaisAPublier = true;                   // renvoyer les états actuels
-    buzzerAPublier = true;
-  } else {
-    Serial.printf("MQTT echec : erreur %d, code broker %d\r\n",
-                  mqtt.lastError(), mqtt.returnCode());
-  }
-}
-
-// ===== Publier une mesure en JSON =====
-// {"valeur":22.0,"unite":"°C","qualite":"ok","ts":"2026-10-07T14:10:02Z"}
-void publierMesure(const char* topic, float valeur, int decimales,
-                   const char* unite, bool valide, const String& ts) {
-  JsonDocument doc;
-  if (isnan(valeur)) doc["valeur"] = nullptr;                  // pas de NaN dans un JSON
-  else               doc["valeur"] = serialized(String(valeur, decimales));
-  doc["unite"]   = unite;
-  doc["qualite"] = valide ? "ok" : "erreur";
-  doc["ts"]      = ts;
-
-  char texte[160];
-  serializeJson(doc, texte, sizeof(texte));
-  mqtt.publish(topic, texte, false, 0);      // non retenu, QoS 0
-}
-
-// ===== Publier les états des actionneurs (QoS 1, retenus) =====
-void publierEtats() {
-  String ts = horodatage();
-  if (!mqttConnecte || ts.length() == 0) return;   // on réessaiera au prochain tour
-
-  if (relaisAPublier) {
-    JsonDocument doc;
-    doc["etat"]  = moteurEnMarche ? "marche" : "coupe";
-    doc["cause"] = causeRelais;
-    doc["ts"]    = ts;
-    char texte[160];
-    serializeJson(doc, texte, sizeof(texte));
-    if (mqtt.publish(TOPIC_RELAIS_ETAT, texte, true, 1)) relaisAPublier = false;
-  }
-  if (buzzerAPublier) {
-    JsonDocument doc;
-    doc["etat"] = buzzerActif ? "ON" : "OFF";
-    doc["ts"]   = ts;
-    char texte[100];
-    serializeJson(doc, texte, sizeof(texte));
-    if (mqtt.publish(TOPIC_BUZ_ETAT, texte, true, 1)) buzzerAPublier = false;
-  }
-}
-
-// ===== NOUVEAU (⑥) : publier une alerte « coupure locale » =====
-// {"type":"coupure_locale","grandeur":"temperature","valeur":95.7,"seuil":85.0,"ts":"…"}
-void publierUneAlerte(AlerteCoupure &alerte, const char* grandeur,
-                      float seuil, int decimales) {
-  if (!alerte.aPublier) return;
-  String ts = alerte.ts.length() ? alerte.ts : horodatage();   // heure de la coupure si connue
-  if (ts.length() == 0) return;                                // pas d'heure : on attend
-
-  JsonDocument doc;
-  doc["type"]     = "coupure_locale";
-  doc["grandeur"] = grandeur;
-  doc["valeur"]   = serialized(String(alerte.valeur, decimales));
-  doc["seuil"]    = serialized(String(seuil, decimales));
-  doc["ts"]       = ts;
-  char texte[200];
-  serializeJson(doc, texte, sizeof(texte));
-  if (mqtt.publish(TOPIC_ALERTES, texte, false, 1)) {          // QoS 1, NON retenu
-    alerte.aPublier = false;
-    Serial.printf("Alerte envoyee : coupure locale (%s)\r\n", grandeur);
-  }
-}
-
-void publierAlertes() {
-  if (!mqttConnecte) return;                 // pas de connexion : l'alerte attend
-  publierUneAlerte(alerteTemp, "temperature", SEUIL_CRITIQUE_TEMP, 1);
-  publierUneAlerte(alerteVib,  "vibration",   SEUIL_CRITIQUE_VIB,  2);
-}
-
-// ===== Appliquer la commande reçue =====
+// Appliquer une commande reçue par le réseau (le buzzer reste piloté par le cœur 1)
 void appliquerCommande() {
-  if (commandeRecue.length() == 0) return;
-  if (commandeRecue == "ON") buzzerOn(); else buzzerOff();
-  Serial.printf(">>> COMMANDE BUZZER : %s (source : %s)\r\n",
-                commandeRecue.c_str(), sourceCommande.c_str());
-  commandeRecue = "";
-  buzzerAPublier = true;                     // on confirme l'état, même s'il n'a pas changé
+  verrouiller();
+  String cmd = partage.commande, src = partage.source;
+  partage.commande = "";
+  deverrouiller();
+  if (cmd.length() == 0) return;
+  if (cmd == "ON") buzzerOn(true); else buzzerOff(true);   // true = confirmer l'état même s'il n'a pas changé
+  Serial.printf(">>> COMMANDE BUZZER : %s (source : %s)\r\n", cmd.c_str(), src.c_str());
 }
 
-// ===== Coupure au seuil critique =====
+// Coupure au seuil critique (+ alerte déposée dans la boîte)
 void verifierSeuilCritique(float temp, float vib) {
   bool tempCritique = temperatureValide(temp) && temp > SEUIL_CRITIQUE_TEMP;
   bool vibCritique  = vibrationValide(vib)    && vib  > SEUIL_CRITIQUE_VIB;
@@ -276,14 +176,15 @@ void verifierSeuilCritique(float temp, float vib) {
     else                             moteurCoupe("vibration critique");
     Serial.printf(">>> COUPURE LOCALE : temp = %.1f C, vib = %.2f g\r\n", temp, vib);
 
-    // NOUVEAU (⑥) : on prépare l'alerte (envoyée dès que MQTT le permet)
     String ts = horodatage();
-    if (tempCritique) { alerteTemp.aPublier = true; alerteTemp.valeur = temp; alerteTemp.ts = ts; }
-    if (vibCritique)  { alerteVib.aPublier  = true; alerteVib.valeur  = vib;  alerteVib.ts  = ts; }
+    verrouiller();
+    if (tempCritique) { partage.alerteTemp.valeur = temp; partage.alerteTemp.ts = ts; partage.alerteTemp.numero++; }
+    if (vibCritique)  { partage.alerteVib.valeur  = vib;  partage.alerteVib.ts  = ts; partage.alerteVib.numero++;  }
+    deverrouiller();
   }
 }
 
-// ===== Bouton « Réarmement » =====
+// Bouton « Réarmement »
 void gererBoutonRearmement() {
   int etat = digitalRead(PIN_BOUTON);
   if (etat != etatBoutonPrecedent && millis() - dernierChangementBouton > 50) {
@@ -303,13 +204,155 @@ void gererBoutonRearmement() {
   }
 }
 
+// ===================================================================
+// TÂCHE RÉSEAU (cœur 0)
+// ===================================================================
+// Réception d'un message (appelée par mqtt.loop(), donc sur le cœur 0)
+void recevoirMessage(String &topic, String &texte) {
+  if (topic != TOPIC_BUZ_CMD) return;
+  JsonDocument doc;
+  if (deserializeJson(doc, texte)) { Serial.print("Commande ignoree : JSON invalide\r\n"); return; }
+  String cmd = doc["cmd"] | "";
+  if (cmd != "ON" && cmd != "OFF") { Serial.print("Commande ignoree : cmd doit etre ON ou OFF\r\n"); return; }
+  verrouiller();
+  partage.commande = cmd;
+  partage.source   = doc["source"] | "inconnue";
+  deverrouiller();
+}
+
+void surveillerWifi() {
+  bool connecte = (WiFi.status() == WL_CONNECTED);
+  if (connecte && !wifiConnecte) {
+    Serial.print("Wi-Fi connecte, IP = ");
+    Serial.println(WiFi.localIP());
+    configTime(0, 0, "pool.ntp.org");
+  }
+  if (!connecte && wifiConnecte) Serial.println("Wi-Fi perdu : la surveillance locale continue\r");
+  wifiConnecte = connecte;
+}
+
+void surveillerMqtt() {
+  if (!wifiConnecte) { mqttConnecte = false; return; }
+  mqtt.loop();
+  mqttConnecte = mqtt.connected();
+  if (mqttConnecte) return;
+  if (millis() - dernierEssaiMqtt < ATTENTE_MQTT_MS) return;
+  dernierEssaiMqtt = millis();
+
+  Serial.print("Connexion MQTT (TLS 8883)...\r\n");
+  if (mqtt.connect("esp32-pompe1", MQTT_USER, MQTT_PASS)) {   // peut bloquer ~6 s : seul le cœur 0 attend
+    mqttConnecte = true;
+    Serial.print("MQTT connecte au broker\r\n");
+    mqtt.publish(TOPIC_ETAT, ETAT_EN_LIGNE, true, 1);
+    Serial.print("Etat publie : en_ligne\r\n");
+    mqtt.subscribe(TOPIC_BUZ_CMD, 1);
+    pubRelais = UINT32_MAX;                   // forcer le renvoi des états actuels
+    pubBuzzer = UINT32_MAX;
+  } else {
+    Serial.printf("MQTT echec : erreur %d, code broker %d\r\n", mqtt.lastError(), mqtt.returnCode());
+  }
+}
+
+// Publier ce qui a changé dans la boîte
+void publierDepuisPartage() {
+  verrouiller();
+  Partage copie = partage;                    // copie rapide, puis on rend le verrou tout de suite
+  deverrouiller();
+
+  String maintenant = horodatage();
+  char texte[200];
+
+  // 1) Mesures (QoS 0, non retenues)
+  if (copie.numMesure != pubMesure && copie.tsMesure.length() > 0) {
+    JsonDocument d;
+    if (isnan(copie.temp)) d["valeur"] = nullptr;                   // pas de NaN dans un JSON
+    else                   d["valeur"] = serialized(String(copie.temp, 1));
+    d["unite"]   = "°C";
+    d["qualite"] = temperatureValide(copie.temp) ? "ok" : "erreur";
+    d["ts"]      = copie.tsMesure;
+    serializeJson(d, texte, sizeof(texte));
+    mqtt.publish(TOPIC_TEMP, texte, false, 0);
+
+    JsonDocument v;
+    v["valeur"]  = serialized(String(copie.vib, 2));
+    v["unite"]   = "g";
+    v["qualite"] = vibrationValide(copie.vib) ? "ok" : "erreur";
+    v["ts"]      = copie.tsMesure;
+    serializeJson(v, texte, sizeof(texte));
+    mqtt.publish(TOPIC_VIB, texte, false, 0);
+    pubMesure = copie.numMesure;              // QoS 0 : une mesure ratée sera remplacée
+  }
+
+  if (maintenant.length() == 0) return;       // états et alertes ont besoin d'une heure
+
+  // 2) État du relais (QoS 1, retenu)
+  if (copie.numRelais != pubRelais) {
+    JsonDocument d;
+    d["etat"]  = copie.moteurEnMarche ? "marche" : "coupe";
+    d["cause"] = copie.causeRelais;
+    d["ts"]    = maintenant;
+    serializeJson(d, texte, sizeof(texte));
+    if (mqtt.publish(TOPIC_RELAIS_ETAT, texte, true, 1)) pubRelais = copie.numRelais;
+  }
+
+  // 3) État du buzzer (QoS 1, retenu)
+  if (copie.numBuzzer != pubBuzzer) {
+    JsonDocument d;
+    d["etat"] = copie.buzzerActif ? "ON" : "OFF";
+    d["ts"]   = maintenant;
+    serializeJson(d, texte, sizeof(texte));
+    if (mqtt.publish(TOPIC_BUZ_ETAT, texte, true, 1)) pubBuzzer = copie.numBuzzer;
+  }
+
+  // 4) Alertes « coupure locale » (QoS 1, non retenues)
+  struct { AlerteCoupure *a; uint32_t *pub; const char *grandeur; float seuil; int dec; } liste[2] = {
+    { &copie.alerteTemp, &pubAlerteTemp, "temperature", SEUIL_CRITIQUE_TEMP, 1 },
+    { &copie.alerteVib,  &pubAlerteVib,  "vibration",   SEUIL_CRITIQUE_VIB,  2 },
+  };
+  for (auto &e : liste) {
+    if (e.a->numero == *e.pub) continue;
+    JsonDocument d;
+    d["type"]     = "coupure_locale";
+    d["grandeur"] = e.grandeur;
+    d["valeur"]   = serialized(String(e.a->valeur, e.dec));
+    d["seuil"]    = serialized(String(e.seuil, e.dec));
+    d["ts"]       = e.a->ts.length() ? e.a->ts : maintenant;   // heure de la coupure si connue
+    serializeJson(d, texte, sizeof(texte));
+    if (mqtt.publish(TOPIC_ALERTES, texte, false, 1)) {
+      *e.pub = e.a->numero;
+      Serial.printf("Alerte envoyee : coupure locale (%s)\r\n", e.grandeur);
+    }
+  }
+}
+
+// La tâche réseau : tourne en boucle sur le cœur 0
+void tacheReseau(void *param) {
+  WiFi.mode(WIFI_STA);
+  WiFi.setAutoReconnect(true);                 // NOUVEAU (08 ④) : reconnexion Wi-Fi automatique
+  WiFi.begin(WIFI_SSID, WIFI_PASS, 6);
+  reseauTLS.setCACert(CA_CERT);
+  mqtt.begin(MQTT_HOST, MQTT_PORT, reseauTLS);
+  mqtt.setKeepAlive(KEEPALIVE_S);
+  mqtt.setWill(TOPIC_ETAT, ETAT_HORS_LIGNE, true, 1);
+  mqtt.onMessage(recevoirMessage);
+
+  for (;;) {
+    surveillerWifi();
+    surveillerMqtt();
+    if (mqttConnecte) publierDepuisPartage();
+    vTaskDelay(pdMS_TO_TICKS(20));            // laisse respirer le cœur 0 (20 ms)
+  }
+}
+
+// ===================================================================
 void setup() {
   Serial.begin(115200);
+  verrou = xSemaphoreCreateMutex();           // le verrou AVANT tout le reste
 
   pinMode(PIN_RELAIS, OUTPUT);
   pinMode(PIN_BOUTON, INPUT_PULLUP);
-  moteurCoupe("demarrage");                  // position sûre au démarrage
-  ledcSetup(CANAL_BUZZER, 2000, 8);          // prépare le PWM AVANT tout usage
+  moteurCoupe("demarrage");                   // position sûre au démarrage
+  ledcSetup(CANAL_BUZZER, 2000, 8);
   ledcAttachPin(PIN_BUZZER, CANAL_BUZZER);
   buzzerOff();
 
@@ -318,26 +361,19 @@ void setup() {
   capteurTemp.requestTemperatures();
 
   Wire.begin(PIN_SDA, PIN_SCL);
-  if (!mpu.begin()) {
-    Serial.println("ERREUR : MPU6050 introuvable\r");
-  }
+  if (!mpu.begin()) Serial.println("ERREUR : MPU6050 introuvable\r");
   mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
 
-  buzzerOn(); delay(300); buzzerOff();       // bip de test
+  buzzerOn(); delay(300); buzzerOff();        // bip de test
   moteurMarche("demarrage");
 
-  // Wi-Fi : on le LANCE, mais on n'attend pas
-  WiFi.mode(WIFI_STA);
-  WiFi.begin(WIFI_SSID, WIFI_PASS, 6);       // canal 6 = plus rapide dans Wokwi
+  // Lancer la tâche réseau sur le cœur 0 (pile de 12 Ko pour TLS)
+  xTaskCreatePinnedToCore(tacheReseau, "reseau", 12288, NULL, 1, NULL, 0);
 
-  // Préparation de MQTT (la connexion se fera dans loop)
-  reseauTLS.setCACert(CA_CERT);              // on ne fait confiance qu'à notre CA
-  mqtt.begin(MQTT_HOST, MQTT_PORT, reseauTLS);   // host.wokwi.internal : 8883
-  mqtt.onMessage(recevoirMessage);           // qui traite les messages reçus
-
-  Serial.println("Demarrage : surveillance active, connexion Wi-Fi en cours...\r");
+  Serial.println("Demarrage : securite sur le coeur 1, reseau sur le coeur 0\r");
 }
 
+// loop() = TÂCHE SÉCURITÉ, sur le cœur 1 : ne parle jamais au réseau
 void loop() {
   // ① Vibration : une lecture toutes les 20 ms
   if (millis() - dernierEchantillon >= ECHANTILLON_MS) {
@@ -351,15 +387,11 @@ void loop() {
     nbEchantillons++;
   }
 
-  // ② Bouton, Wi-Fi, MQTT, commandes, états et alertes : à chaque tour
+  // ② Bouton et commandes reçues : à chaque tour
   gererBoutonRearmement();
-  surveillerWifi();
-  surveillerMqtt();
   appliquerCommande();
-  publierEtats();
-  publierAlertes();                          // NOUVEAU (⑥)
 
-  // ③ Toutes les 2 s : mesures, décision, publication, affichage
+  // ③ Toutes les 2 s : mesures, décision, dépôt dans la boîte, affichage
   if (millis() - derniereMesure >= PERIODE_MS) {
     derniereMesure = millis();
 
@@ -372,23 +404,17 @@ void loop() {
     verifierSeuilCritique(derniereTemp, derniereVib);   // la sécurité d'abord
 
     String ts = horodatage();
+    verrouiller();                                      // déposer la mesure pour le réseau
+    partage.temp = derniereTemp; partage.vib = derniereVib;
+    partage.tsMesure = ts;       partage.numMesure++;
+    deverrouiller();
 
-    bool publie = false;
-    if (mqttConnecte && ts.length() > 0) {
-      publierMesure(TOPIC_TEMP, derniereTemp, 1, "°C",
-                    temperatureValide(derniereTemp), ts);
-      publierMesure(TOPIC_VIB, derniereVib, 2, "g",
-                    vibrationValide(derniereVib), ts);
-      publie = true;
-    }
-
-    Serial.printf("[%s] Temp : %.1f C | Vib : %.2f g | Moteur : %s | Buzzer : %s | Wi-Fi : %s | MQTT : %s%s\r\n",
+    Serial.printf("[%s] Temp : %.1f C | Vib : %.2f g | Moteur : %s | Buzzer : %s | Wi-Fi : %s | MQTT : %s\r\n",
                   ts.length() ? ts.c_str() : "heure inconnue",
                   derniereTemp, derniereVib,
                   moteurEnMarche ? "MARCHE" : "COUPE",
                   buzzerActif ? "ON" : "OFF",
                   wifiConnecte ? "OK" : "...",
-                  mqttConnecte ? "OK" : "...",
-                  publie ? " | publie" : "");
+                  mqttConnecte ? "OK" : "...");
   }
 }
