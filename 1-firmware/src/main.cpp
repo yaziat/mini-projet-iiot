@@ -267,7 +267,7 @@ void surveillerWifi() {
   if (connecte && !wifiConnecte) {
     Serial.print("Wi-Fi connecte, IP = ");
     Serial.println(WiFi.localIP());
-    configTime(0, 0, "pool.ntp.org");
+        configTime(0, 0, "pool.ntp.org", "time.google.com", "162.159.200.1");   // 3 serveurs NTP : 2 noms + 1 IP directe (Cloudflare)
   }
   if (!connecte && wifiConnecte) Serial.println("Wi-Fi perdu : la surveillance locale continue\r");
   wifiConnecte = connecte;
