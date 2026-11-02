@@ -188,6 +188,20 @@
     "h": 82
   },
   {
+    "id": "a7d7c1440e2b7196",
+    "type": "group",
+    "z": "93b1832550c85d6a",
+    "name": "Journal horodaté",
+    "style": {
+      "label": true
+    },
+    "nodes": ["2e386f42b757cdf2", "ca40d491b9d6e217", "75bfadbb354887ce"],
+    "x": 54,
+    "y": 839,
+    "w": 392,
+    "h": 202
+  },
+  {
     "id": "a69a2bea52c9c7c6",
     "type": "mqtt in",
     "z": "93b1832550c85d6a",
@@ -279,7 +293,8 @@
         "6a8a1b38431d9349",
         "3070c25ec578a24e",
         "64e3f71ad1ab7306",
-        "64b9f1c3b2b24028"
+        "64b9f1c3b2b24028",
+        "ca40d491b9d6e217"
       ]
     ]
   },
@@ -1163,6 +1178,65 @@
     "wires": [[]]
   },
   {
+    "id": "ca40d491b9d6e217",
+    "type": "function",
+    "z": "93b1832550c85d6a",
+    "g": "a7d7c1440e2b7196",
+    "name": "Ligne journal",
+    "func": "// Ligne journal : chaque événement devient une ligne (fichier CSV + tableau du dashboard)\nif (msg.retain) return null;                       // état retenu rejoué à la connexion : pas un nouvel événement\nconst t = msg.topic || \"\";\nconst p = msg.payload;\nif (typeof p !== \"object\" || p === null) return null;\n\nconst recu = new Date().toISOString().replace(/\\.\\d{3}Z$/, \"Z\");   // heure Node-RED (fiable)\nlet categorie, evenement, detail = \"\";\n\nif (t.endsWith(\"/alertes\")) {\n    categorie = \"Alerte\";\n    if (p.type === \"debut\") {\n        evenement = `Début N°${p.id}`;\n        detail = `${p.grandeur} : moyenne ${p.valeur} > seuil ${p.seuil}`;\n    } else if (p.type === \"fin\") {\n        evenement = `Fin N°${p.id}`;\n        detail = (p.valeur === null) ? `${p.grandeur} : capteur revenu`\n            : `${p.grandeur} : moyenne ${p.valeur} < ${p.seuil}`;\n    } else if (p.type === \"acquittement\") {\n        evenement = `Acquittement N°${p.id}`;\n        detail = \"vu par l'opérateur\";\n    } else if (p.type === \"defaut_capteur\") {\n        evenement = `Défaut capteur N°${p.id}`;\n        detail = `${p.grandeur} : 3 mesures en erreur de suite`;\n    } else if (p.type === \"coupure_locale\") {\n        categorie = \"Sécurité\";\n        evenement = \"Coupure locale\";\n        detail = `${p.grandeur} = ${p.valeur} > seuil critique ${p.seuil}`;\n    } else return null;\n}\nelse if (t.endsWith(\"buzzer/commande\")) {\n    categorie = \"Commande\"; evenement = `Buzzer ${p.cmd}`; detail = `source : ${p.source}`;\n}\nelse if (t.endsWith(\"relais/etat\")) {\n    categorie = \"Moteur\"; evenement = (p.etat === \"marche\") ? \"Marche\" : \"Coupé\"; detail = p.cause || \"\";\n}\nelse if (t.endsWith(\"pompe1/etat\")) {\n    categorie = \"ESP32\"; evenement = (p.etat === \"en_ligne\") ? \"En ligne\" : \"Hors ligne\";\n}\nelse return null;                                   // buzzer/etat : simple confirmation, déjà tracée par la commande\n\nconst ligne = { recu: recu, mesure: p.ts || \"\", categorie: categorie, evenement: evenement, detail: detail };\n\n// Sortie 1 : une ligne pour le fichier (séparateur ; pour Excel en français)\nconst csv = {\n    payload: [ligne.recu, ligne.mesure, categorie, evenement, detail]\n        .map(x => String(x).replace(/;/g, \",\")).join(\";\")\n};\n\n// Sortie 2 : le tableau du dashboard (les 50 derniers événements, le plus récent en haut)\nlet journal = flow.get(\"journal\") || [];\njournal.unshift(ligne);                             // ajouter AU DÉBUT (le plus récent en premier)\nif (journal.length > 50) journal.pop();             // garder 50 lignes à l'écran (le fichier, lui, garde tout)\nflow.set(\"journal\", journal);\n\nconst tableau = {\n    payload: journal.map(l => ({\n        \"Reçu à (UTC)\": l.recu.replace(\"T\", \" \").replace(\"Z\", \"\"),\n        \"Heure mesure (UTC)\": l.mesure.replace(\"T\", \" \").replace(\"Z\", \"\"),\n        \"Catégorie\": l.categorie,\n        \"Événement\": l.evenement,\n        \"Détail\": l.detail\n    }))\n};\n\nreturn [csv, tableau];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 150,
+    "y": 940,
+    "wires": [["75bfadbb354887ce"], ["2e386f42b757cdf2"]]
+  },
+  {
+    "id": "75bfadbb354887ce",
+    "type": "file",
+    "z": "93b1832550c85d6a",
+    "g": "a7d7c1440e2b7196",
+    "name": "Fichier journal",
+    "filename": "C:\\Users\\YAZID\\Documents\\mini-projet-iiot\\5-data\\journal.csv",
+    "filenameType": "str",
+    "appendNewline": true,
+    "createDir": false,
+    "overwriteFile": "false",
+    "encoding": "utf8",
+    "x": 340,
+    "y": 880,
+    "wires": [[]]
+  },
+  {
+    "id": "2e386f42b757cdf2",
+    "type": "ui-table",
+    "z": "93b1832550c85d6a",
+    "g": "a7d7c1440e2b7196",
+    "group": "7a8db09786499c08",
+    "name": "Tableau journal",
+    "label": "Journal des événements",
+    "order": 0,
+    "width": 0,
+    "height": 0,
+    "maxrows": "10",
+    "passthru": false,
+    "autocols": true,
+    "showSearch": true,
+    "deselect": true,
+    "selectionType": "none",
+    "columns": [],
+    "mobileBreakpoint": "sm",
+    "mobileBreakpointType": "defaults",
+    "action": "replace",
+    "className": "",
+    "x": 340,
+    "y": 1000,
+    "wires": [[]]
+  },
+  {
     "id": "f065e07674d991c7",
     "type": "mqtt-broker",
     "name": "Mosquitto TLS",
@@ -1174,8 +1248,8 @@
     "usetls": true,
     "protocolVersion": 4,
     "keepalive": "30",
-    "cleansession": true,
-    "autoUnsubscribe": true,
+    "cleansession": false,
+    "autoUnsubscribe": false,
     "birthTopic": "",
     "birthQos": "0",
     "birthRetain": "false",
@@ -1287,6 +1361,21 @@
     "allowInstall": false
   },
   {
+    "id": "7a8db09786499c08",
+    "type": "ui-group",
+    "name": "Journal",
+    "page": "7abaf1380dfb9746",
+    "width": "12",
+    "height": 1,
+    "order": -1,
+    "showTitle": true,
+    "className": "",
+    "visible": "true",
+    "disabled": "false",
+    "groupType": "default",
+    "tab": ""
+  },
+  {
     "id": "5472987237c0fc89",
     "type": "tls-config",
     "name": "CA Mini Projet IIoT",
@@ -1363,7 +1452,7 @@
     }
   },
   {
-    "id": "cf540f55c47d6c0f",
+    "id": "a76e362767928e29",
     "type": "global-config",
     "env": [],
     "modules": {
