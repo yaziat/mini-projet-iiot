@@ -93,9 +93,9 @@
       "8992d6129f8c27fe",
       "86acefd5badda21c"
     ],
-    "x": 954,
-    "y": 639,
-    "w": 752,
+    "x": 1054,
+    "y": 1219,
+    "w": 652,
     "h": 242
   },
   {
@@ -112,8 +112,8 @@
       "a8a011248c26a3f6",
       "8aa48c3f27cd15fe"
     ],
-    "x": 1074,
-    "y": 899,
+    "x": 1734,
+    "y": 1199,
     "w": 852,
     "h": 162
   },
@@ -126,10 +126,66 @@
       "label": true
     },
     "nodes": ["97e580406843bf12", "3070c25ec578a24e", "b7482c230fe0bf9a"],
-    "x": 154,
-    "y": 939,
+    "x": 174,
+    "y": 1199,
     "w": 812,
     "h": 182
+  },
+  {
+    "id": "8ffc512e682977cc",
+    "type": "group",
+    "z": "93b1832550c85d6a",
+    "name": "Moyenne glissante",
+    "style": {
+      "label": true
+    },
+    "nodes": ["6cfbbbe964080ca4", "fcd9eaee0185e78f"],
+    "x": 1734,
+    "y": 339,
+    "w": 532,
+    "h": 82
+  },
+  {
+    "id": "197c25971dc8d6cc",
+    "type": "group",
+    "z": "93b1832550c85d6a",
+    "name": "Seuil d'alerte",
+    "style": {
+      "label": true
+    },
+    "nodes": ["19bfb5e0b3b3c890", "601bc2cd2fb2d3f3"],
+    "x": 1994,
+    "y": 439,
+    "w": 492,
+    "h": 82
+  },
+  {
+    "id": "be7ac6c1e0b6c669",
+    "type": "group",
+    "z": "93b1832550c85d6a",
+    "name": "Décision alerte",
+    "style": {
+      "label": true
+    },
+    "nodes": ["64e3f71ad1ab7306", "cff8586a3bf85949"],
+    "x": 2234,
+    "y": 699,
+    "w": 472,
+    "h": 282
+  },
+  {
+    "id": "43400453ca54903f",
+    "type": "group",
+    "z": "93b1832550c85d6a",
+    "name": "Notification",
+    "style": {
+      "label": true
+    },
+    "nodes": ["0e1e5cb04a82c648", "64b9f1c3b2b24028"],
+    "x": 1114,
+    "y": 919,
+    "w": 552,
+    "h": 82
   },
   {
     "id": "a69a2bea52c9c7c6",
@@ -187,7 +243,9 @@
         "a2a5ba5cbed3a1e1",
         "6a8a1b38431d9349",
         "27c8121e42b28fed",
-        "c3f53f308564fa45"
+        "c3f53f308564fa45",
+        "fcd9eaee0185e78f",
+        "594f3da59dd18e9c"
       ],
       ["6e986965037ec894"]
     ]
@@ -215,7 +273,15 @@
     "outputs": 2,
     "x": 340,
     "y": 640,
-    "wires": [["f3c1f796752f510e"], ["6a8a1b38431d9349", "3070c25ec578a24e"]]
+    "wires": [
+      ["f3c1f796752f510e"],
+      [
+        "6a8a1b38431d9349",
+        "3070c25ec578a24e",
+        "64e3f71ad1ab7306",
+        "64b9f1c3b2b24028"
+      ]
+    ]
   },
   {
     "id": "c2b4c1c7bbe75f51",
@@ -223,7 +289,7 @@
     "z": "93b1832550c85d6a",
     "g": "f4693253d3234c99",
     "name": "valides",
-    "active": true,
+    "active": false,
     "tosidebar": true,
     "console": false,
     "tostatus": false,
@@ -241,7 +307,7 @@
     "z": "93b1832550c85d6a",
     "g": "f4693253d3234c99",
     "name": "rejeté",
-    "active": true,
+    "active": false,
     "tosidebar": true,
     "console": false,
     "tostatus": false,
@@ -249,8 +315,8 @@
     "targetType": "full",
     "statusVal": "",
     "statusType": "auto",
-    "x": 1070,
-    "y": 280,
+    "x": 1090,
+    "y": 340,
     "wires": []
   },
   {
@@ -532,8 +598,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 1040,
-    "y": 780,
+    "x": 1140,
+    "y": 1340,
     "wires": [
       ["df04893fbb220566"],
       ["b8ec7c4b5f757ce3"],
@@ -564,7 +630,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 1540,
-    "y": 760,
+    "y": 1340,
     "wires": []
   },
   {
@@ -589,7 +655,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 1540,
-    "y": 720,
+    "y": 1300,
     "wires": []
   },
   {
@@ -614,7 +680,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 1540,
-    "y": 680,
+    "y": 1260,
     "wires": []
   },
   {
@@ -639,7 +705,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 1580,
-    "y": 800,
+    "y": 1380,
     "wires": []
   },
   {
@@ -664,7 +730,7 @@
     "value": "payload",
     "valueType": "msg",
     "x": 1570,
-    "y": 840,
+    "y": 1420,
     "wires": []
   },
   {
@@ -746,8 +812,8 @@
     "enablePointerup": false,
     "pointerupPayload": "",
     "pointerupPayloadType": "str",
-    "x": 1170,
-    "y": 1020,
+    "x": 1830,
+    "y": 1320,
     "wires": [["a8a011248c26a3f6"]]
   },
   {
@@ -782,8 +848,8 @@
     "enablePointerup": false,
     "pointerupPayload": "",
     "pointerupPayloadType": "str",
-    "x": 1170,
-    "y": 940,
+    "x": 1830,
+    "y": 1240,
     "wires": [["a8a011248c26a3f6"]]
   },
   {
@@ -799,8 +865,8 @@
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 1500,
-    "y": 980,
+    "x": 2120,
+    "y": 1280,
     "wires": [["8aa48c3f27cd15fe"]]
   },
   {
@@ -818,8 +884,8 @@
     "correl": "",
     "expiry": "",
     "broker": "f065e07674d991c7",
-    "x": 1800,
-    "y": 980,
+    "x": 2460,
+    "y": 1280,
     "wires": []
   },
   {
@@ -828,16 +894,16 @@
     "z": "93b1832550c85d6a",
     "g": "62b39a21017425e2",
     "name": "Liste des alertes",
-    "func": "// Liste des alertes : reçoit les alertes MQTT et l'ordre \"acquitter\", renvoie le tableau\nlet liste = flow.get(\"alertes\") || [];\nlet compteur = flow.get(\"compteurAlertes\") || 0;\n\nif (msg.topic === \"acquitter\") {                         // clic sur le bouton Acquitter\n    liste.forEach(a => { a.acquittee = true; });\n}\nelse if (msg.topic && msg.topic.endsWith(\"/alertes\")) {  // une alerte arrive du broker\n    const p = msg.payload;\n    if (typeof p !== \"object\" || p === null || typeof p.type !== \"string\") {\n        node.warn(\"Alerte ignorée : format invalide\");\n        return null;\n    }\n    compteur++;                                          // Node-RED numérote les alertes\n    liste.push({\n        numero: compteur, type: p.type, grandeur: p.grandeur || \"\",\n        valeur: p.valeur, seuil: p.seuil, ts: p.ts || \"\", acquittee: false\n    });\n    flow.set(\"compteurAlertes\", compteur);\n}\nelse {\n    return null;                                         // états, commandes : pas pour nous\n}\n\nflow.set(\"alertes\", liste);\n\n// Mise en forme pour le tableau du dashboard\nmsg.payload = liste.map(a => ({\n    \"N°\": a.numero,\n    \"Heure (UTC)\": a.ts.replace(\"T\", \" \").replace(\"Z\", \"\"),\n    \"Type\": a.type === \"coupure_locale\" ? \"Coupure locale\" : a.type,\n    \"Grandeur\": a.grandeur,\n    \"Valeur\": a.valeur,\n    \"Seuil\": a.seuil,\n    \"État\": a.acquittee ? \"✔ Acquittée\" : \"⚠ À traiter\"\n}));\nreturn msg;",
-    "outputs": 1,
+    "func": "// Liste des alertes (v2) : UNE ligne par alerte (son id), construite à partir du topic alertes\n// Sortie 1 : le tableau du dashboard | Sortie 2 : les acquittements à publier\nconst TOPIC = \"usine/ligne1/pompe1/alertes\";\nconst p = msg.payload;\nlet liste = flow.get(\"listeAlertes\") || [];\nlet aPublier = [];\nconst trouver = id => liste.find(a => a.id === id);\nconst maintenant = () => new Date().toISOString().replace(/\\.\\d{3}Z$/, \"Z\");\n\nif (msg.topic === \"acquitter\") {                          // clic sur Acquitter\n    liste.filter(a => !a.acquittee).forEach(a => {\n        aPublier.push({ topic: TOPIC, payload: { id: a.id, type: \"acquittement\", ts: maintenant() } });\n    });\n    // les lignes seront marquées quand les acquittements REVIENDRONT du broker\n}\nelse if (msg.topic === TOPIC && typeof p === \"object\" && p !== null) {\n      if ((p.type === \"debut\" || p.type === \"defaut_capteur\") && !trouver(p.id)) {\n        liste.push({ id: p.id, type: p.type === \"debut\" ? \"Seuil d'alerte\" : \"Défaut capteur\",\n                     grandeur: p.grandeur, valeur: p.valeur,\n                     seuil: p.seuil, ts: p.ts, terminee: false, acquittee: false });\n    }\n    else if (p.type === \"fin\")          { const a = trouver(p.id); if (a) a.terminee  = true; }\n    else if (p.type === \"acquittement\") { const a = trouver(p.id); if (a) a.acquittee = true; }\n    else if (p.type === \"coupure_locale\") {                // vient de l'ESP32, sans id : Node-RED lui en donne un\n        const id = (flow.get(\"idAlerte\") || 0) + 1;\n        flow.set(\"idAlerte\", id);\n        liste.push({ id: id, type: \"Coupure locale\", grandeur: p.grandeur, valeur: p.valeur,\n                     seuil: p.seuil, ts: p.ts, terminee: false, acquittee: false });\n    }\n    else return null;\n}\nelse if (msg.topic && msg.topic.endsWith(\"relais/etat\") && p && p.etat === \"marche\") {\n    liste.filter(a => a.type === \"Coupure locale\").forEach(a => { a.terminee = true; });   // moteur réarmé\n}\nelse return null;\n\nliste = liste.filter(a => !(a.acquittee && a.terminee));  // acquittée ET terminée → elle sort\nflow.set(\"listeAlertes\", liste);\n\nconst tableau = { payload: liste.map(a => ({\n    \"N°\":          a.id,\n    \"Heure (UTC)\": (a.ts || \"\").replace(\"T\", \" \").replace(\"Z\", \"\"),\n    \"Type\":        a.type,\n    \"Grandeur\":    a.grandeur,\n    \"Valeur\":      a.valeur,\n    \"Seuil\":       a.seuil,\n    \"État\":        (a.terminee ? \"Terminée\" : \"Active\") + \" · \" + (a.acquittee ? \"acquittée\" : \"non acquittée\")\n})) };\nreturn [tableau, aPublier.length ? aPublier : null];",
+    "outputs": 2,
     "timeout": 0,
     "noerr": 0,
     "initialize": "",
     "finalize": "",
     "libs": [],
-    "x": 560,
-    "y": 980,
-    "wires": [["b7482c230fe0bf9a"]]
+    "x": 580,
+    "y": 1240,
+    "wires": [["b7482c230fe0bf9a"], ["cff8586a3bf85949"]]
   },
   {
     "id": "b7482c230fe0bf9a",
@@ -861,8 +927,8 @@
     "mobileBreakpointType": "defaults",
     "action": "replace",
     "className": "",
-    "x": 850,
-    "y": 980,
+    "x": 870,
+    "y": 1340,
     "wires": [[]]
   },
   {
@@ -897,8 +963,8 @@
     "enablePointerup": false,
     "pointerupPayload": "",
     "pointerupPayloadType": "str",
-    "x": 260,
-    "y": 1080,
+    "x": 280,
+    "y": 1340,
     "wires": [["3070c25ec578a24e"]]
   },
   {
@@ -932,6 +998,168 @@
     "encoding": "utf8",
     "x": 1670,
     "y": 480,
+    "wires": [[]]
+  },
+  {
+    "id": "fcd9eaee0185e78f",
+    "type": "function",
+    "z": "93b1832550c85d6a",
+    "g": "8ffc512e682977cc",
+    "name": "Moyenne glissante",
+    "func": "// Moyenne glissante : moyenne des N dernières mesures valides, par grandeur\nconst N = 5;                                        // 5 mesures = 10 s\n\nif (!msg.capteurOk) return null;                    // capteur en défaut : on n'en tient pas compte\n\nconst g = msg.grandeur;                             // \"temperature\" ou \"vibration\"\nlet fenetre = flow.get(\"fenetre_\" + g) || [];       // les dernières valeurs gardées en mémoire\n\nfenetre.push(msg.payload.valeur);                   // on ajoute la nouvelle mesure…\nif (fenetre.length > N) fenetre.shift();            // …et on enlève la plus ancienne\nflow.set(\"fenetre_\" + g, fenetre);\n\nif (fenetre.length < N) return null;                // pas encore 5 mesures : on attend\n\nconst moyenne = fenetre.reduce((somme, v) => somme + v, 0) / N;\n\nmsg.payload = {\n    grandeur: g,\n    moyenne:  Math.round(moyenne * 100) / 100,      // arrondi à 2 décimales\n    derniere: msg.payload.valeur,\n    ts:       msg.payload.ts\n};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1850,
+    "y": 380,
+    "wires": [["6cfbbbe964080ca4", "601bc2cd2fb2d3f3"]]
+  },
+  {
+    "id": "6cfbbbe964080ca4",
+    "type": "debug",
+    "z": "93b1832550c85d6a",
+    "g": "8ffc512e682977cc",
+    "name": "debug « moyenne »",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 2120,
+    "y": 380,
+    "wires": []
+  },
+  {
+    "id": "601bc2cd2fb2d3f3",
+    "type": "function",
+    "z": "93b1832550c85d6a",
+    "g": "197c25971dc8d6cc",
+    "name": "Seuil d'alerte",
+    "func": "// Seuil d'alerte avec hystérésis : envoie un message SEULEMENT au début et à la fin d'une alerte\nconst SEUILS = {\n    temperature: { debut: 75, fin: 72 },\n    vibration: { debut: 0.5, fin: 0.4 }\n};\n\nconst g = msg.payload.grandeur;\nconst m = msg.payload.moyenne;\nconst s = SEUILS[g];\nif (!s) return null;\n\nlet enAlerte = flow.get(\"enAlerte_\" + g) || false;     // l'état actuel, gardé en mémoire (sur disque)\n\nif (!enAlerte && m > s.debut) {                        // pas en alerte, et la moyenne dépasse le seuil\n    flow.set(\"enAlerte_\" + g, true);\n    msg.payload = { evenement: \"debut\", grandeur: g, valeur: m, seuil: s.debut, ts: msg.payload.ts };\n    return msg;\n}\nif (enAlerte && m < s.fin) {                           // en alerte, et la moyenne est redescendue sous la fin\n    flow.set(\"enAlerte_\" + g, false);\n    msg.payload = { evenement: \"fin\", grandeur: g, valeur: m, seuil: s.fin, ts: msg.payload.ts };\n    return msg;\n}\nreturn null;                                           // rien de nouveau : on n'envoie rien",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2090,
+    "y": 480,
+    "wires": [["19bfb5e0b3b3c890", "64e3f71ad1ab7306"]]
+  },
+  {
+    "id": "19bfb5e0b3b3c890",
+    "type": "debug",
+    "z": "93b1832550c85d6a",
+    "g": "197c25971dc8d6cc",
+    "name": "debug « événement »",
+    "active": true,
+    "tosidebar": true,
+    "console": false,
+    "tostatus": false,
+    "complete": "payload",
+    "targetType": "msg",
+    "statusVal": "",
+    "statusType": "auto",
+    "x": 2340,
+    "y": 480,
+    "wires": []
+  },
+  {
+    "id": "64e3f71ad1ab7306",
+    "type": "function",
+    "z": "93b1832550c85d6a",
+    "g": "be7ac6c1e0b6c669",
+    "name": "Décision alerte",
+    "func": "// Décision alerte (v3)\n// Reçoit : (a) événements \"debut\"/\"fin\" (Seuil d'alerte ET Défaut capteur)\n//          (b) le topic alertes renvoyé par le broker (on n'utilise que \"acquittement\")\n// Sortie 1 : alerte à publier | Sortie 2 : commande du buzzer\nconst TOPIC_ALERTES = \"usine/ligne1/pompe1/alertes\";\nconst p = msg.payload || {};\nlet actives = flow.get(\"alertesActives\") || {};          // alertes en cours, par clé\nlet alerte = null;\nlet source = \"auto\";\nconst cle = p.cle || p.grandeur;                         // NOUVEAU (11.6)\n\nif (p.evenement === \"debut\") {\n    const id = (flow.get(\"idAlerte\") || 0) + 1;\n    flow.set(\"idAlerte\", id);\n    actives[cle] = { id: id, acquittee: false };\n    alerte = { id: id, type: p.typeAlerte || \"debut\", grandeur: p.grandeur,\n               valeur: p.valeur, seuil: p.seuil, ts: p.ts };\n}\nelse if (p.evenement === \"fin\") {\n    const a = actives[cle];\n    if (!a) return null;\n    delete actives[cle];\n    alerte = { id: a.id, type: \"fin\", grandeur: p.grandeur, valeur: p.valeur, seuil: p.seuil, ts: p.ts };\n}\nelse if (msg.topic === TOPIC_ALERTES && p.type === \"acquittement\") {\n    let trouvee = false;\n    for (const k in actives) {\n        if (actives[k].id === p.id) { actives[k].acquittee = true; trouvee = true; }\n    }\n    if (!trouvee) return null;\n    source = \"acquittement\";\n}\nelse return null;\n\nflow.set(\"alertesActives\", actives);\n\nconst cmd = Object.values(actives).some(a => !a.acquittee) ? \"ON\" : \"OFF\";\nconst commande = { payload: { cmd: cmd, source: source, ts: new Date().toISOString().replace(/\\.\\d{3}Z$/, \"Z\") } };\n\nreturn [ alerte ? { topic: TOPIC_ALERTES, payload: alerte } : null, commande ];",
+    "outputs": 2,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 2340,
+    "y": 740,
+    "wires": [["cff8586a3bf85949"], ["8aa48c3f27cd15fe"]]
+  },
+  {
+    "id": "cff8586a3bf85949",
+    "type": "mqtt out",
+    "z": "93b1832550c85d6a",
+    "g": "be7ac6c1e0b6c669",
+    "name": "Publier alerte",
+    "topic": "usine/ligne1/pompe1/alertes",
+    "qos": "1",
+    "retain": "false",
+    "respTopic": "",
+    "contentType": "",
+    "userProps": "",
+    "correl": "",
+    "expiry": "",
+    "broker": "f065e07674d991c7",
+    "x": 2610,
+    "y": 940,
+    "wires": []
+  },
+  {
+    "id": "594f3da59dd18e9c",
+    "type": "function",
+    "z": "93b1832550c85d6a",
+    "name": "Défaut capteur",
+    "func": "// Défaut capteur : règle des 3 valeurs (3 mesures en erreur DE SUITE → défaut)\nconst g = msg.grandeur;                                  // \"temperature\" ou \"vibration\"\nlet nb = flow.get(\"nbErreurs_\" + g) || 0;                // nombre d'erreurs de suite\nlet enDefaut = flow.get(\"enDefaut_\" + g) || false;       // déjà en défaut ?\nlet evenement = null;\n\nif (!msg.capteurOk) {                                    // mesure en erreur\n    nb++;\n    if (nb === 3 && !enDefaut) {                         // 3e erreur de suite → panne\n        enDefaut = true;\n        evenement = \"debut\";\n    }\n} else {                                                 // mesure bonne\n    nb = 0;\n    if (enDefaut) {                                      // le capteur est revenu\n        enDefaut = false;\n        evenement = \"fin\";\n    }\n}\n\nflow.set(\"nbErreurs_\" + g, nb);\nflow.set(\"enDefaut_\" + g, enDefaut);\n\nif (evenement === null) return null;                     // rien de nouveau\n\nmsg.payload = {\n    evenement: evenement,\n    typeAlerte: \"defaut_capteur\",\n    cle: \"defaut_\" + g,                           // ≠ de l'alerte de seuil de la même grandeur\n    grandeur: g,\n    valeur: null,\n    seuil: null,\n    ts: msg.payload.ts\n};\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1440,
+    "y": 820,
+    "wires": [["64e3f71ad1ab7306"]]
+  },
+  {
+    "id": "64b9f1c3b2b24028",
+    "type": "function",
+    "z": "93b1832550c85d6a",
+    "g": "43400453ca54903f",
+    "name": "Texte notification",
+    "func": "// Texte notification : un message court pour chaque NOUVELLE alerte (pas pour fin / acquittement)\nconst p = msg.payload;\nif (!msg.topic || !msg.topic.endsWith(\"/alertes\") || typeof p !== \"object\" || p === null) return null;\n\nconst g = p.grandeur === \"vibration\" ? \"Vibration\" : \"Température\";\n\nif (p.type === \"debut\") {\n    msg.payload = `⚠ Alerte N°${p.id} : ${g} moyenne ${p.valeur} (seuil ${p.seuil})`;\n}\nelse if (p.type === \"defaut_capteur\") {\n    msg.payload = `🟠 Défaut capteur N°${p.id} : ${g} (3 mesures en erreur de suite)`;\n}\nelse if (p.type === \"coupure_locale\") {\n    msg.payload = `🔴 COUPURE MOTEUR : ${g} = ${p.valeur} (seuil critique ${p.seuil})`;\n}\nelse return null;                         // fin, acquittement : pas de notification\n\nreturn msg;",
+    "outputs": 1,
+    "timeout": 0,
+    "noerr": 0,
+    "initialize": "",
+    "finalize": "",
+    "libs": [],
+    "x": 1230,
+    "y": 960,
+    "wires": [["0e1e5cb04a82c648"]]
+  },
+  {
+    "id": "0e1e5cb04a82c648",
+    "type": "ui-notification",
+    "z": "93b1832550c85d6a",
+    "g": "43400453ca54903f",
+    "ui": "dbfd9d83adb7f8fd",
+    "position": "top right",
+    "colorDefault": true,
+    "color": "#000000",
+    "displayTime": "10",
+    "showCountdown": true,
+    "outputs": 1,
+    "allowDismiss": true,
+    "dismissText": "Close",
+    "allowConfirm": false,
+    "confirmText": "Confirm",
+    "raw": false,
+    "className": "",
+    "name": "Notification alerte",
+    "x": 1550,
+    "y": 960,
     "wires": [[]]
   },
   {
@@ -1042,6 +1270,23 @@
     "tab": ""
   },
   {
+    "id": "dbfd9d83adb7f8fd",
+    "type": "ui-base",
+    "name": "My Dashboard",
+    "path": "/dashboard",
+    "appIcon": "",
+    "includeClientData": true,
+    "acceptsClientConfig": ["ui-notification", "ui-control"],
+    "showPathInSidebar": false,
+    "headerContent": "page",
+    "navigationStyle": "default",
+    "titleBarStyle": "default",
+    "showReconnectNotification": true,
+    "notificationDisplayTime": 1,
+    "showDisconnectNotification": true,
+    "allowInstall": false
+  },
+  {
     "id": "5472987237c0fc89",
     "type": "tls-config",
     "name": "CA Mini Projet IIoT",
@@ -1099,23 +1344,6 @@
     "disabled": false
   },
   {
-    "id": "dbfd9d83adb7f8fd",
-    "type": "ui-base",
-    "name": "My Dashboard",
-    "path": "/dashboard",
-    "appIcon": "",
-    "includeClientData": true,
-    "acceptsClientConfig": ["ui-notification", "ui-control"],
-    "showPathInSidebar": false,
-    "headerContent": "page",
-    "navigationStyle": "default",
-    "titleBarStyle": "default",
-    "showReconnectNotification": true,
-    "notificationDisplayTime": 1,
-    "showDisconnectNotification": true,
-    "allowInstall": false
-  },
-  {
     "id": "0a7d524785589339",
     "type": "ui-theme",
     "name": "Default Theme",
@@ -1135,7 +1363,7 @@
     }
   },
   {
-    "id": "29140ae52db5fc3a",
+    "id": "cf540f55c47d6c0f",
     "type": "global-config",
     "env": [],
     "modules": {

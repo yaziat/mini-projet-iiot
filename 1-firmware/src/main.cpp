@@ -408,8 +408,10 @@ void setup() {
   if (mpuOk) mpu.setAccelerometerRange(MPU6050_RANGE_8_G);
   else       Serial.println("ERREUR : MPU6050 introuvable (vibration invalide)\r");
 
-  buzzerOn(); delay(300); buzzerOff();        // bip de test
-  moteurMarche("demarrage");
+  // DÉCISION B (11) : pas de redémarrage automatique après un reset.
+  // Le moteur reste coupé jusqu'au réarmement par le bouton (mesures valides, sous 75 °C et 0,5 g).
+  moteurCoupe("demarrage : attente du rearmement");
+  defautCritique = true;
 
   // Lancer la tâche réseau sur le cœur 0 (pile de 12 Ko pour TLS)
   xTaskCreatePinnedToCore(tacheReseau, "reseau", 12288, NULL, 1, NULL, 0);
