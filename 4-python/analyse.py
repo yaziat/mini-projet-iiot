@@ -2,8 +2,11 @@
 
 Ce que fait le script, pour chaque grandeur (température, vibration) :
   1. charge l'historique CSV (mesures valides seulement) ;
-  2. calcule une moyenne mobile et un écart-type mobile sur la minute précédente ;
-  3. détecte les anomalies par z-score : |z| > 3 = valeur très éloignée de son passé récent ;
+  2. calcule la « valeur habituelle » (médiane) et l'« écart habituel » (MAD) de la minute précédente ;
+  3. détecte les anomalies par z-score robuste : |z| > 3 (loin de l'habitude) et saut > 3 écarts
+     par rapport à la mesure précédente (un nouveau palier compte une seule fois) ;
+     (médiane et MAD au lieu de moyenne et écart-type : un premier saut ne « gonfle » pas la référence
+      et ne cache donc pas les sauts suivants) ;
   4. calcule la tendance des 30 dernières minutes (pente) et estime le temps
      restant avant le seuil d'alerte et le seuil critique (maintenance prédictive) ;
   5. trace un graphique avec les anomalies et les seuils, et écrit un petit rapport.
@@ -26,10 +29,13 @@ import pandas as pd
 RACINE = Path(__file__).resolve().parent.parent
 SORTIE = Path(__file__).resolve().parent / "resultats"
 
-FENETRE  = 30          # 30 mesures = 1 minute (une mesure toutes les 2 s)
-Z_MAX    = 3.0         # au-delà de 3 écarts-types : anomalie
+FENETRE  = "60s"       # référence = la minute PRÉCÉDENTE (fenêtre de temps : après un arrêt, on ne compare pas à de vieilles mesures)
+MIN_MESURES = 3        # il faut au moins 3 mesures dans la fenêtre pour juger
+Z_MAX    = 3.0         # au-delà de 3 « écarts habituels » : anomalie
+K_MAD    = 1.4826      # MAD × 1,4826 = écart-type équivalent (pour un bruit normal)
 ECART_MIN = {"temperature": 0.5, "vibration": 0.02}   # évite de diviser par ~0 quand le signal est plat
 TENDANCE_MIN = 30      # tendance calculée sur les 30 dernières minutes
+DUREE_MIN_TENDANCE = 0.5   # il faut des mesures sur au moins la moitié de cette durée, sinon pas de prévision
 
 NOMS = {"temperature": "Température", "vibration": "Vibration"}
 TROU_FACTEUR = 10      # un écart 10 fois plus long que d'habitude = simulation arrêtée : on coupe la courbe
@@ -78,11 +84,16 @@ def analyser(d, grandeur):
     s = SEUILS[grandeur]
     x = d[d["grandeur"] == grandeur].set_index("ts")["valeur"]
 
-    # Moyenne et écart-type de la minute PRÉCÉDENTE (shift) : la mesure testée ne fausse pas sa propre référence
-    moyenne = x.rolling(FENETRE, min_periods=FENETRE).mean().shift(1)
-    ecart = x.rolling(FENETRE, min_periods=FENETRE).std().shift(1).clip(lower=ECART_MIN[grandeur])
-    z = (x - moyenne) / ecart
-    anomalies = x[z.abs() > Z_MAX]
+    # Référence = la minute PRÉCÉDENTE ("left" : la mesure testée n'est pas dans sa propre référence)
+    fenetre = x.rolling(FENETRE, min_periods=MIN_MESURES, closed="left")
+    moyenne = fenetre.median()                                   # valeur habituelle (médiane)
+    mad = fenetre.apply(lambda w: np.median(np.abs(w - np.median(w))), raw=True)   # écart habituel (MAD)
+    ecart = (K_MAD * mad).clip(lower=ECART_MIN[grandeur])        # minimum imposé : pas de division par 0
+    z = (x - moyenne) / ecart                                    # z-score robuste
+    saut = (x - x.shift(1)).abs() / ecart                        # écart avec la mesure d'avant
+    # Anomalie = la mesure est loin de l'habitude (|z| > 3) ET elle vient de sauter (> 3 écarts) :
+    # un nouveau palier n'est compté qu'une fois, au moment du saut, pas à chaque mesure qui suit.
+    anomalies = x[(z.abs() > Z_MAX) & (saut > Z_MAX)]
 
     # Tendance sur les 30 dernières minutes : droite des moindres carrés
     recent = x[x.index >= x.index.max() - pd.Timedelta(minutes=TENDANCE_MIN)]
@@ -90,13 +101,22 @@ def analyser(d, grandeur):
     pente, origine = np.polyfit(heures, recent.values, 1) if len(recent) > 10 else (0.0, recent.mean())
     actuelle = recent.tail(5).mean()                            # valeur actuelle = moyenne des 5 dernières mesures
 
+    duree_min = (recent.index.max() - recent.index.min()).total_seconds() / 60 if len(recent) else 0
+    assez = duree_min >= DUREE_MIN_TENDANCE * TENDANCE_MIN   # une droite tirée sur 1 minute ne prédit rien
+
     def temps_avant(seuil):
         if actuelle >= seuil:
             return "déjà atteint"
+        if not assez:
+            return f"pas de prévision (seulement {duree_min:.0f} min de mesures récentes, il en faut {DUREE_MIN_TENDANCE * TENDANCE_MIN:.0f})"
         if pente <= 0:
             return "jamais (pas de montée)"
         h = (seuil - actuelle) / pente
-        return f"environ {h:.1f} h" if h < 48 else f"environ {h / 24:.0f} jours"
+        if h < 1:
+            return f"environ {h * 60:.0f} min"
+        if h < 48:
+            return f"environ {h:.1f} h"
+        return f"environ {h / 24:.1f} jours ({h:.0f} h)"
 
     resume = {
         "grandeur": grandeur,
@@ -115,16 +135,16 @@ def tracer(grandeur, x, moyenne, ecart, anomalies, droite, fichier):
     fig, ax = plt.subplots(figsize=(12, 4.8))
     xc, mc = couper_trous(x), couper_trous(moyenne)
     ax.plot(xc.index, xc.values, lw=0.8, color="#64748b", label="mesure")
-    ax.plot(mc.index, mc.values, lw=1.6, color="#2563eb", label=f"moyenne mobile ({FENETRE} mesures)")
+    ax.plot(mc.index, mc.values, lw=1.6, color="#2563eb", label=f"médiane mobile ({FENETRE})")
     bas_z, haut_z = couper_trous(moyenne - Z_MAX * ecart), couper_trous(moyenne + Z_MAX * ecart)
     ax.fill_between(bas_z.index, bas_z.values, haut_z.values,
-                    color="#2563eb", alpha=0.12, label="zone normale (±3 écarts-types)")
+                    color="#2563eb", alpha=0.12, label="zone normale (±3 écarts habituels)")
     ax.scatter(anomalies.index, anomalies.values, color="#dc2626", s=26, zorder=3,
                label=f"anomalies ({len(anomalies)})")
     ax.plot(droite[0], droite[1], "--", color="#7c3aed", lw=2, label=f"tendance (sur {TENDANCE_MIN} min)")
     ax.axhline(s["alerte"], color="#f59e0b", ls=":", lw=1.5, label=f"seuil d'alerte {s['alerte']} {s['unite']}")
     ax.axhline(s["critique"], color="#dc2626", ls=":", lw=1.5, label=f"seuil critique {s['critique']} {s['unite']}")
-    ax.set_title(f"{NOMS[grandeur]} du palier — détection d'anomalies (z-score)")
+    ax.set_title(f"{NOMS[grandeur]} du palier — détection d'anomalies (z-score robuste)")
     ax.set_ylabel(s["unite"])
     bas, haut = np.nanmin(x.values), np.nanmax(x.values)
     marge = (max(haut, s["critique"]) - bas) * 0.08
@@ -150,7 +170,7 @@ def main():
     global FENETRE, TENDANCE_MIN
     if args.demo:
         d, nb_ignorees, nom = donnees_demo(), 0, "DONNÉES SIMULÉES (démonstration d'usure lente sur 7 jours)"
-        FENETRE, TENDANCE_MIN = 36, 24 * 60                     # fenêtre 3 h, tendance sur le dernier jour
+        FENETRE, TENDANCE_MIN = "3h", 24 * 60                   # fenêtre 3 h, tendance sur le dernier jour
         sortie = SORTIE / "demo"
     else:
         d, nb_ignorees = charger(args.fichier)
@@ -170,7 +190,7 @@ def main():
             f"== {g.upper()} ==",
             f"Mesures valides : {r['nb']}  ({r['debut']:%d/%m %H:%M} → {r['fin']:%d/%m %H:%M} UTC)",
             f"Moyenne {r['moyenne']:.2f} {u} · min {r['min']:.2f} · max {r['max']:.2f}",
-            f"Anomalies (|z| > {Z_MAX:g}) : {r['nb_anomalies']}",
+            f"Anomalies (sauts inhabituels, |z| > {Z_MAX:g}) : {r['nb_anomalies']}",
             f"Tendance (sur {TENDANCE_MIN} min) : {r['pente']:+.3f} {u}/h · valeur actuelle ≈ {r['actuelle']:.2f} {u}",
             f"Temps estimé avant le seuil d'alerte : {r['avant_alerte']}",
             f"Temps estimé avant le seuil critique : {r['avant_critique']}",
