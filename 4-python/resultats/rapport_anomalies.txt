@@ -1,0 +1,18 @@
+Analyse de mesures_nodered.csv
+Mesures en erreur ou incomplètes ignorées : 129
+
+== TEMPERATURE ==
+Mesures valides : 3915  (01/11 17:59 → 04/11 01:57 UTC)
+Moyenne 55.02 °C · min 15.00 · max 114.70
+Anomalies (|z| > 3) : 118
+Tendance (sur 30 min) : -0.425 °C/h · valeur actuelle ≈ 72.24 °C
+Temps estimé avant le seuil d'alerte : jamais (pas de montée)
+Temps estimé avant le seuil critique : jamais (pas de montée)
+
+== VIBRATION ==
+Mesures valides : 4029  (01/11 17:59 → 04/11 01:57 UTC)
+Moyenne 0.16 g · min 0.00 · max 1.37
+Anomalies (|z| > 3) : 39
+Tendance (sur 30 min) : +0.000 g/h · valeur actuelle ≈ 0.00 g
+Temps estimé avant le seuil d'alerte : jamais (pas de montée)
+Temps estimé avant le seuil critique : jamais (pas de montée)
