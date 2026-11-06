@@ -36,7 +36,7 @@
       "id": "bz1",
       "top": 170,
       "left": -190,
-      "attrs": { "volume": "0.1" }
+      "attrs": { "volume": "1" }
     },
     {
       "type": "wokwi-pushbutton",
