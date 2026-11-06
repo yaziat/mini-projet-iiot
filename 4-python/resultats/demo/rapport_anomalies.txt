@@ -4,7 +4,7 @@ Mesures en erreur ou incomplètes ignorées : 0
 == TEMPERATURE ==
 Mesures valides : 2016  (01/11 00:00 → 07/11 23:55 UTC)
 Moyenne 59.97 °C · min 53.83 · max 69.16
-Anomalies (|z| > 3) : 14
+Anomalies (sauts inhabituels, |z| > 3) : 13
 Tendance (sur 1440 min) : +0.119 °C/h · valeur actuelle ≈ 68.48 °C
 Temps estimé avant le seuil d'alerte : environ 2.3 jours (55 h)
 Temps estimé avant le seuil critique : environ 5.8 jours (139 h)
@@ -12,7 +12,7 @@ Temps estimé avant le seuil critique : environ 5.8 jours (139 h)
 == VIBRATION ==
 Mesures valides : 2016  (01/11 00:00 → 07/11 23:55 UTC)
 Moyenne 0.24 g · min 0.11 · max 0.53
-Anomalies (|z| > 3) : 1
+Anomalies (sauts inhabituels, |z| > 3) : 1
 Tendance (sur 1440 min) : +0.002 g/h · valeur actuelle ≈ 0.38 g
 Temps estimé avant le seuil d'alerte : environ 2.5 jours (60 h)
 Temps estimé avant le seuil critique : environ 12.5 jours (301 h)
